@@ -1,0 +1,187 @@
+// Senviok — Prisma Schema
+// PostgreSQL + pgcrypto for UUID generation
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  apiKeys   ApiKey[]
+  domains   Domain[]
+  templates Template[]
+  emails    EmailLog[]
+
+  @@map("users")
+}
+
+// ─── API Keys ─────────────────────────────────────────────────────────────────
+
+model ApiKey {
+  id        String    @id @default(uuid())
+  userId    String
+  name      String
+  keyHash   String    @unique  // bcrypt/sha256 hash — never store plaintext
+  keyPrefix String              // e.g. "snv_live_abc123" — shown in dashboard
+  lastUsed  DateTime?
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+// ─── Domains ──────────────────────────────────────────────────────────────────
+
+model Domain {
+  id                   String             @id @default(uuid())
+  userId               String
+  domain               String             @unique
+  // SES identity details
+  sesIdentityArn       String?
+  configSetName        String             @unique  // per-tenant config set
+  // DKIM
+  dkimTokens           String[]           // 3 CNAME tokens from SES Easy DKIM
+  dkimStatus           DkimStatus         @default(PENDING)
+  // Custom MAIL FROM
+  mailFromSubdomain    String?            // e.g. "bounce.theircompany.ng"
+  mailFromStatus       MailFromStatus     @default(NOT_STARTED)
+  // Overall verification
+  verificationStatus   VerificationStatus @default(PENDING)
+  verifiedAt           DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emails EmailLog[]
+
+  @@index([userId])
+  @@map("domains")
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  TEMPORARY_FAILURE
+}
+
+enum DkimStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  TEMPORARY_FAILURE
+  NOT_STARTED
+}
+
+enum MailFromStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  TEMPORARY_FAILURE
+  NOT_STARTED
+}
+
+// ─── Templates ────────────────────────────────────────────────────────────────
+
+model Template {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  subject   String
+  htmlBody  String   // MJML or raw HTML
+  textBody  String?
+  variables String[] // list of variable names e.g. ["name", "otp"]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emails EmailLog[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("templates")
+}
+
+// ─── Email Logs ───────────────────────────────────────────────────────────────
+
+model EmailLog {
+  id               String      @id @default(uuid())
+  userId           String
+  domainId         String?
+  templateId       String?
+  // Envelope
+  fromAddress      String
+  toAddresses      String[]
+  subject          String
+  // SES tracking
+  sesMessageId     String?     @unique
+  jobId            String?     @unique  // BullMQ job ID
+  configSetName    String?
+  // Status
+  status           EmailStatus @default(QUEUED)
+  errorMessage     String?
+  // Events from SES (via SNS webhook)
+  deliveredAt      DateTime?
+  openedAt         DateTime?
+  clickedAt        DateTime?
+  bouncedAt        DateTime?
+  complainedAt     DateTime?
+  // Metadata
+  tags             Json?       // arbitrary key-value tags
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  domain   Domain?   @relation(fields: [domainId], references: [id])
+  template Template? @relation(fields: [templateId], references: [id])
+
+  @@index([userId])
+  @@index([sesMessageId])
+  @@index([status])
+  @@map("email_logs")
+}
+
+enum EmailStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  COMPLAINED
+  FAILED
+}
+
+// ─── Suppression List ─────────────────────────────────────────────────────────
+
+model SuppressionEntry {
+  id        String           @id @default(uuid())
+  email     String           @unique
+  reason    SuppressionReason
+  createdAt DateTime         @default(now())
+
+  @@map("suppression_list")
+}
+
+enum SuppressionReason {
+  BOUNCE
+  COMPLAINT
+  MANUAL
+}
