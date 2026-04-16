@@ -22,7 +22,7 @@ async function authPlugin(fastify: FastifyInstance) {
 
   fastify.decorate(
     'authenticate',
-    async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
       const authHeader = request.headers.authorization
 
       if (!authHeader) {
@@ -46,7 +46,7 @@ async function authPlugin(fastify: FastifyInstance) {
         // Update last used timestamp (fire-and-forget)
         fastify.prisma.apiKey
           .update({ where: { id: record.id }, data: { lastUsed: new Date() } })
-          .catch(() => {})
+          .catch((err) => fastify.log.error({ err, apiKeyId: record.id }, 'Failed to update API key lastUsed'))
 
         request.user = {
           sub: record.userId,

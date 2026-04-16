@@ -38,7 +38,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     if (existing) throw new ConflictError('Email already registered')
 
     const user = await fastify.prisma.user.create({
-      data: { email, passwordHash: hashPassword(password), name },
+      data: { email, passwordHash: await hashPassword(password), name },
     })
 
     const token = fastify.jwt.sign({ sub: user.id, email: user.email }, { expiresIn: '7d' })
@@ -57,7 +57,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     const { email, password } = body.data
 
     const user = await fastify.prisma.user.findUnique({ where: { email } })
-    if (!user || !verifyPassword(password, user.passwordHash)) {
+    if (!user || !(await verifyPassword(password, user.passwordHash))) {
       throw new UnauthorizedError('Invalid email or password')
     }
 

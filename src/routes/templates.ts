@@ -20,6 +20,15 @@ const templateSchema = z.object({
   variables: z.array(z.string()).default([]),
 })
 
+// Separate update schema — keeps min-length validation on all fields
+const templateUpdateSchema = z.object({
+  name: z.string().min(1).max(128).optional(),
+  subject: z.string().min(1).max(998).optional(),
+  htmlBody: z.string().min(1).optional(),
+  textBody: z.string().optional(),
+  variables: z.array(z.string()).optional(),
+})
+
 const previewSchema = z.object({
   variables: z.record(z.string()).default({}),
 })
@@ -74,7 +83,7 @@ export async function templateRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const { id } = request.params as { id: string }
-      const body = templateSchema.partial().safeParse(request.body)
+      const body = templateUpdateSchema.safeParse(request.body)
       if (!body.success) return fail(reply, 'VALIDATION_ERROR', 'Invalid input', 422, body.error.flatten())
 
       const existing = await fastify.prisma.template.findUnique({ where: { id } })

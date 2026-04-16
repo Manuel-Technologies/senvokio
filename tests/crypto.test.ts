@@ -21,20 +21,20 @@ describe('generateApiKey', () => {
   })
 })
 
-describe('password hashing', () => {
-  it('verifies correct password', () => {
-    const hash = hashPassword('mypassword123')
-    expect(verifyPassword('mypassword123', hash)).toBe(true)
+describe('password hashing (bcrypt)', () => {
+  it('verifies correct password', async () => {
+    const hash = await hashPassword('mypassword123')
+    expect(await verifyPassword('mypassword123', hash)).toBe(true)
   })
 
-  it('rejects wrong password', () => {
-    const hash = hashPassword('mypassword123')
-    expect(verifyPassword('wrongpassword', hash)).toBe(false)
+  it('rejects wrong password', async () => {
+    const hash = await hashPassword('mypassword123')
+    expect(await verifyPassword('wrongpassword', hash)).toBe(false)
   })
 
-  it('produces different hashes for same password (salted)', () => {
-    const h1 = hashPassword('same')
-    const h2 = hashPassword('same')
+  it('produces different hashes for same password (salted)', async () => {
+    const h1 = await hashPassword('same')
+    const h2 = await hashPassword('same')
     expect(h1).not.toBe(h2)
   })
 })

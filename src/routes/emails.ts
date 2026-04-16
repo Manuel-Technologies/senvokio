@@ -4,6 +4,7 @@
 // GET  /emails/:id      — get single email log
 
 import type { FastifyInstance } from 'fastify'
+import type { EmailStatus } from '@prisma/client'
 import { z } from 'zod'
 import { sendEmail } from '../services/sendingService'
 import { ok, created, fail } from '../lib/response'
@@ -24,10 +25,12 @@ const sendEmailSchema = z.object({
   { message: 'Provide html, text, or templateId' },
 )
 
+const VALID_STATUSES = ['QUEUED', 'SENDING', 'SENT', 'DELIVERED', 'OPENED', 'CLICKED', 'BOUNCED', 'COMPLAINED', 'FAILED'] as const
+
 const listQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
-  status: z.string().optional(),
+  status: z.enum(VALID_STATUSES).optional(),
 })
 
 export async function emailRoutes(fastify: FastifyInstance) {
@@ -63,7 +66,7 @@ export async function emailRoutes(fastify: FastifyInstance) {
         fastify.prisma.emailLog.findMany({
           where: {
             userId: request.user.sub,
-            ...(status ? { status: status as never } : {}),
+            ...(status ? { status: status as EmailStatus } : {}),
           },
           orderBy: { createdAt: 'desc' },
           skip,
@@ -84,7 +87,7 @@ export async function emailRoutes(fastify: FastifyInstance) {
         fastify.prisma.emailLog.count({
           where: {
             userId: request.user.sub,
-            ...(status ? { status: status as never } : {}),
+            ...(status ? { status: status as EmailStatus } : {}),
           },
         }),
       ])
