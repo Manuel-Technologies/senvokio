@@ -9,7 +9,6 @@ import {
   CreateConfigurationSetCommand,
   CreateConfigurationSetEventDestinationCommand,
   DeleteEmailIdentityCommand,
-  DkimSigningAttributesOrigin,
   EventType,
 } from '@aws-sdk/client-sesv2'
 import { sesClient } from '../config/aws'
@@ -44,15 +43,11 @@ export async function registerDomain(
 
   // 2. Create SES Email Identity (domain) with Easy DKIM
   let dkimTokens: string[] = []
-  let sesIdentityArn: string | undefined
 
   try {
     const createResp = await sesClient.send(
       new CreateEmailIdentityCommand({
         EmailIdentity: domain,
-        DkimSigningAttributes: {
-          NextSigningKeyLength: 'RSA_2048_BIT',
-        },
         ConfigurationSetName: configSetName,
         Tags: [
           { Key: 'senviok:userId', Value: userId },
@@ -62,7 +57,6 @@ export async function registerDomain(
     )
 
     dkimTokens = createResp.DkimAttributes?.Tokens ?? []
-    sesIdentityArn = createResp.IdentityType // SES doesn't return ARN directly on create
   } catch (err: unknown) {
     const error = err as { name?: string; message?: string }
     // AlreadyExistsException — domain already in SES (possibly from another account)

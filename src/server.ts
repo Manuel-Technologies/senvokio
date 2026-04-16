@@ -22,6 +22,7 @@ import { webhookRoutes } from './routes/webhooks'
 import { analyticsRoutes } from './routes/analytics'
 
 import { AppError } from './lib/errors'
+import { hashApiKey } from './lib/crypto'
 import type { ApiError } from './types'
 
 async function buildApp() {
@@ -51,9 +52,11 @@ async function buildApp() {
     max: env.RATE_LIMIT_MAX,
     timeWindow: env.RATE_LIMIT_WINDOW_MS,
     keyGenerator: (request) => {
-      // Rate limit by API key or IP
+      // Rate limit by hashed API key or IP
       const auth = request.headers.authorization
-      if (auth?.startsWith('Bearer snv_')) return auth.slice(7, 30)
+      if (auth?.startsWith('Bearer snv_')) {
+        return hashApiKey(auth.slice(7))
+      }
       return request.ip
     },
     errorResponseBuilder: () => ({
